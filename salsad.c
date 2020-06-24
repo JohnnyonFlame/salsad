@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <getopt.h>
 #include <alsa/asoundlib.h>
 
 void help()
@@ -36,7 +37,7 @@ snd_mixer_elem_t *lookup_selem(snd_mixer_t *mixer, snd_mixer_selem_id_t *id, con
 {
     snd_mixer_selem_id_set_index(id, 0);
     snd_mixer_selem_id_set_name(id, name);
-    
+
     return snd_mixer_find_selem(mixer, id);
 }
 
@@ -61,9 +62,9 @@ int is_active_prior(snd_ctl_t *ctl)
 
 void toggle_outputs(snd_mixer_elem_t *hp, snd_mixer_elem_t *sp, int headphones_on)
 {
-    if (hp) 
+    if (hp)
         snd_mixer_selem_set_playback_switch_all(hp, headphones_on);
-    if (sp) 
+    if (sp)
         snd_mixer_selem_set_playback_switch_all(sp, !headphones_on);
 }
 
@@ -91,10 +92,32 @@ int find_snd_card(const char *name)
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2)
+    char *cardname = NULL;
+    int c, option_index = 0;
+    static struct option long_options[] = {
+        {"help", no_argument, NULL, 'h'},
+        {0, 0, 0, 0}};
+    
+    while ((c = getopt_long(argc, argv, "-h", long_options, &option_index)) != -1)
     {
+        switch (c)
+        {
+        case '\1': /* filename (-) */
+            cardname = optarg;
+            break;
+
+        case 'h': /* -h/--help (h) */
+            help();
+            return 0;
+
+        default: /* Unknown option */
+            return 1;
+        }
+    }
+
+    if (cardname == NULL) {
         help();
-        return -1;
+        return 1;
     }
 
     int err;
@@ -105,22 +128,22 @@ int main(int argc, char *argv[])
 
     // Try finding the card or try querying for it's index
     // If any of those succeed, build hw:xx from that.
-    if (((card_id = find_snd_card(argv[1])) >= 0) 
-        || (card_id = snd_card_get_index(argv[1]) >= 0))
+    if (((card_id = find_snd_card(cardname)) >= 0) 
+        || (card_id = snd_card_get_index(cardname) >= 0))
     {
         snprintf(card, sizeof(card), "hw:%i", card_id);
         DO_CHECK_ERR(snd_ctl_open, &ctl, card, SND_CTL_ASYNC);
     }
-    else if (strncmp(argv[1], "hw", 2))
+    else if (strncmp(cardname, "hw", 2))
     {
         // Name not accepted. Open it directly.
-        DO_CHECK_ERR(snd_ctl_open, &ctl, argv[1], SND_CTL_ASYNC);
-        snprintf(card, sizeof(card), argv[1]);
+        DO_CHECK_ERR(snd_ctl_open, &ctl, cardname, SND_CTL_ASYNC);
+        snprintf(card, sizeof(card), cardname);
     }
     else
     {
         fprintf(stderr, "Failed to find or open sound card.\n");
-        return(-1);
+        exit(-1);
     }
 
     // Open snd control as blocking and subscribe for receiving events
@@ -135,9 +158,9 @@ int main(int argc, char *argv[])
     snd_mixer_selem_id_t *id;
     snd_mixer_elem_t *sp, *hp;
 
-    snd_mixer_selem_id_alloca(&id);    
-    sp   = lookup_selem(mixer, id, "Speaker");
-    hp   = lookup_selem(mixer, id, "Headphones");
+    snd_mixer_selem_id_alloca(&id);
+    sp = lookup_selem(mixer, id, "Speaker");
+    hp = lookup_selem(mixer, id, "Headphones");
     if (!sp)
     {
         fprintf(stderr, "Failure to acquire speaker mixer control! %p, %p\n", sp, hp);
@@ -184,7 +207,7 @@ int main(int argc, char *argv[])
                 {
                     DO_CHECK_ERR(snd_ctl_elem_read, ctl, val);
                     int sense = snd_ctl_elem_value_get_boolean(val, 0);
-                    
+
                     // Headphones Jack is active low
                     toggle_outputs(hp, sp, sense);
                 }
