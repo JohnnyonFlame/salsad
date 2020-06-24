@@ -27,7 +27,7 @@ void help()
 #define DO_CHECK_RC(rc, func, ...)                              \
     if ((rc = func(__VA_ARGS__)) < 0)                           \
     {                                                           \
-        fprintf(stderr, #func ": %s\n", snd_strerror(card_id)); \
+        fprintf(stderr, #func ": %s\n", snd_strerror(rc));      \
         exit(-1);                                               \
     }
 
@@ -70,17 +70,20 @@ void toggle_outputs(snd_mixer_elem_t *hp, snd_mixer_elem_t *sp, int headphones_o
 
 int find_snd_card(const char *name)
 {
-    int card_id = -1;
+    int rc, card_id = -1;
+    if ((rc = snd_card_get_index(name)) >= 0)
+        return rc;
+
     while (snd_card_next(&card_id) == 0)
     {
         if (card_id < 0)
             break;
 
-        char *card_name;
-        if (snd_card_get_name(card_id, &card_name) >= 0)
+        char *cur_card_name;
+        if (snd_card_get_name(card_id, &cur_card_name) >= 0)
         {
-            int cmp = strcmp(name, card_name);
-            free(card_name);
+            int cmp = strcmp(name, cur_card_name);
+            free(cur_card_name); /* snd_card_get_name */
 
             if (cmp == 0)
                 return card_id;
@@ -92,7 +95,7 @@ int find_snd_card(const char *name)
 
 int main(int argc, char *argv[])
 {
-    char *cardname = NULL;
+    char *card_opt = NULL;
     int c, option_index = 0;
     static struct option long_options[] = {
         {"help", no_argument, NULL, 'h'},
@@ -103,7 +106,7 @@ int main(int argc, char *argv[])
         switch (c)
         {
         case '\1': /* filename (-) */
-            cardname = optarg;
+            card_opt = optarg;
             break;
 
         case 'h': /* -h/--help (h) */
@@ -115,38 +118,37 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (cardname == NULL) {
+    if (card_opt == NULL) {
         help();
         return 1;
     }
 
     int err;
-    int card_id;
     char card[64] = "";
     snd_ctl_t *ctl;
     snd_mixer_t *mixer;
 
-    // Try finding the card or try querying for it's index
-    // If any of those succeed, build hw:xx from that.
-    if (((card_id = find_snd_card(cardname)) >= 0) 
-        || (card_id = snd_card_get_index(cardname) >= 0))
+    // Determine card hw id
+    if (strncmp(card_opt, "hw:", 3) == 0)
     {
-        snprintf(card, sizeof(card), "hw:%i", card_id);
-        DO_CHECK_ERR(snd_ctl_open, &ctl, card, SND_CTL_ASYNC);
-    }
-    else if (strncmp(cardname, "hw", 2))
-    {
-        // Name not accepted. Open it directly.
-        DO_CHECK_ERR(snd_ctl_open, &ctl, cardname, SND_CTL_ASYNC);
-        snprintf(card, sizeof(card), cardname);
+        snprintf(card, sizeof(card), card_opt);
     }
     else
     {
-        fprintf(stderr, "Failed to find or open sound card.\n");
-        exit(-1);
+        int card_id;
+        if ((card_id = find_snd_card(card_opt)) < 0)
+        {
+            fprintf(stderr, "Failed to find or open %s.\n", card_opt);
+            exit(-1);
+        }
+        else
+        {
+            snprintf(card, sizeof(card), "hw:%d", card_id);
+        }
     }
 
     // Open snd control as blocking and subscribe for receiving events
+    DO_CHECK_ERR(snd_ctl_open, &ctl, card, SND_CTL_ASYNC);
     DO_CHECK_ERR(snd_ctl_subscribe_events, ctl, 1);
 
     // Open and initialize sound mixer
