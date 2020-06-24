@@ -3,6 +3,10 @@ project(salsad)
 
 find_package(ALSA REQUIRED)
 
-add_executable(salsad salsad.c) 
-target_link_libraries(salsad ${ALSA_LIBRARY})
-target_include_directories(salsad PUBLIC EXTERNAL ${ALSA_INCLUDE_DIR})
+add_executable(${PROJECT_NAME} salsad.c) 
+target_link_libraries(${PROJECT_NAME} ${ALSA_LIBRARY})
+target_include_directories(${PROJECT_NAME} 
+                           PRIVATE EXTERNAL ${ALSA_INCLUDE_DIR})
+                           
+install(TARGETS ${PROJECT_NAME}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
