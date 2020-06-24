@@ -61,8 +61,10 @@ int is_active_prior(snd_ctl_t *ctl)
 
 void toggle_outputs(snd_mixer_elem_t *hp, snd_mixer_elem_t *sp, int headphones_on)
 {
-    snd_mixer_selem_set_playback_switch_all(hp, headphones_on);
-    snd_mixer_selem_set_playback_switch_all(sp, !headphones_on);
+    if (hp) 
+        snd_mixer_selem_set_playback_switch_all(hp, headphones_on);
+    if (sp) 
+        snd_mixer_selem_set_playback_switch_all(sp, !headphones_on);
 }
 
 int find_snd_card(const char *name)
@@ -136,9 +138,9 @@ int main(int argc, char *argv[])
     snd_mixer_selem_id_alloca(&id);    
     sp   = lookup_selem(mixer, id, "Speaker");
     hp   = lookup_selem(mixer, id, "Headphones");
-    if (!hp || !sp)
+    if (!sp)
     {
-        fprintf(stderr, "Failure to acquire one or more mixer controls! %p, %p\n", sp, hp);
+        fprintf(stderr, "Failure to acquire speaker mixer control! %p, %p\n", sp, hp);
         exit(-1);
     }
 
