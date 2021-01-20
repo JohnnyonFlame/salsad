@@ -56,7 +56,6 @@ int is_active_prior(snd_ctl_t *ctl)
     }
 
     int ret = snd_ctl_elem_value_get_boolean(hp_sense, 0);
-    snd_ctl_elem_value_free(hp_sense);
     return ret;
 }
 
@@ -176,7 +175,7 @@ int main(int argc, char *argv[])
     snd_ctl_elem_id_t *val_src;
     snd_ctl_elem_value_t *val;
     snd_ctl_event_alloca(&ev);
-    snd_ctl_elem_id_malloc(&val_src);
+    snd_ctl_elem_id_alloca(&val_src);
     snd_ctl_elem_value_alloca(&val);
     for (;;)
     {
@@ -218,8 +217,5 @@ int main(int argc, char *argv[])
     }
 
     snd_ctl_subscribe_events(ctl, 0);
-    snd_ctl_event_free(ev);
-    snd_ctl_elem_id_free(val_src);
-    snd_ctl_elem_value_free(val);
     return -1;
 }
